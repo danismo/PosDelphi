@@ -1,6 +1,6 @@
-{*******************************************************}
+ï»¿{*******************************************************}
 {                                                       }
-{       Projeto Teste Pós-Delphi                        }
+{       Projeto Teste Pï¿½s-Delphi                        }
 {                                                       }
 {       Copyright (C) 2019 Unoesc                       }
 {                                                       }
@@ -26,8 +26,12 @@ uses
 
   Entity.Pessoa,
 
-  Controller.Interfaces,
-  Controller.Cadastro.Pessoa;
+
+ ExtCtrls,
+
+
+  Controller.Interfaces, Vcl.StdCtrls, Vcl.Buttons, Data.DB,
+  Datasnap.DBClient, Vcl.DBGrids, Model.Iterator.Interfaces;
 
 type
   TStringGridHack = class(TStringGrid)
@@ -38,15 +42,36 @@ type
 
   TPrincipal = class(TForm)
     STGridPessoa: TStringGrid;
+    DBGridClientes: TDBGrid;
+    ClientDataSetClientes: TClientDataSet;
+    ClientDataSetClientesId: TIntegerField;
+    ClientDataSetClientesNome: TStringField;
+    ClientDataSetClientesMatricula: TStringField;
+    DataSourceClientes: TDataSource;
+    pnConsulta: TPanel;
+    cbCampo: TComboBox;
+    editTextoPesquisa: TEdit;
+    ComboBox1: TComboBox;
+    btnPesquisar: TButton;
+    Label1: TLabel;
+    Label2: TLabel;
+    Label3: TLabel;
+    pnAcoes: TPanel;
+    BitBtnExportarAlunosXLS: TBitBtn;
+    BitBtnExportarAlunosHTML: TBitBtn;
+    btnEditar: TButton;
     procedure FormCreate(Sender: TObject);
+    procedure BitBtnExportarAlunosXLSClick(Sender: TObject);
+    procedure BitBtnExportarAlunosHTMLClick(Sender: TObject);
   private
     procedure DefinicaoStringGrid;
-    procedure PreencherStringGrid(ALista: TObjectList<TPessoa>; AIndex: Integer = 0);
+    procedure PreencherStringGrid(ALista: iIterator<TPessoa>);
     procedure AdicionarLinhaStringGrid(AObject: TPessoa);
     function RetornaSexo(ASelecao : TSexo): string;
     { Private declarations }
   public
-    FControllerPessoa : iControllerCadastroPessoa;
+    FControllerPessoa : iControllerCadastro<TPessoa>;
+    FIterator : iIterator<TPessoa>;
     { Public declarations }
   end;
 
@@ -55,8 +80,35 @@ var
 
 implementation
 
+uses
+  Model.Exportador.Interfaces, Model.Exportador.Alunos, Model.Exportador.FormatoXLS, Model.Exportador.FormatoHTML,
+  Controller.Cadastro;
 
 {$R *.dfm}
+
+procedure TPrincipal.BitBtnExportarAlunosHTMLClick(Sender: TObject);
+var
+  Exportador: IExportador;
+begin
+  Exportador := TExportadorAlunos.Create(TFormatoHTML.Create);
+  try
+    Exportador.ExportarDados(ClientDataSetClientes.Data);
+  finally
+    Exportador := nil;
+  end;
+end;
+
+procedure TPrincipal.BitBtnExportarAlunosXLSClick(Sender: TObject);
+var
+  Exportador: IExportador;
+begin
+  Exportador := TExportadorAlunos.Create(TFormatoXLS.Create);
+  try
+    Exportador.ExportarDados(ClientDataSetClientes.Data);
+  finally
+    Exportador := nil;
+  end;
+end;
 
 procedure TPrincipal.DefinicaoStringGrid;
 var
@@ -77,14 +129,15 @@ begin
   STGridPessoa.Cols[7].Text := 'Sexo';
 end;
 
-procedure TPrincipal.PreencherStringGrid(ALista: TObjectList<TPessoa>; AIndex: Integer);
+procedure TPrincipal.PreencherStringGrid(ALista: iIterator<TPessoa>);
 var
   LFor: Integer;
 begin
-  for LFor := AIndex to ALista.Count -1 do
+  //for LFor := AIndex to ALista.Count -1 do
+  while ALista.temProximo do
   begin
     // Adiciona a lista de objetos geral.
-    AdicionarLinhaStringGrid(ALista.Items[LFor]);
+    AdicionarLinhaStringGrid(ALista.Proximo);
     TStringGridHack(STGridPessoa).InsertRow(1);
   end;
   if STGridPessoa.RowCount > 1 then
@@ -100,13 +153,19 @@ end;
 end;
 
 procedure TPrincipal.FormCreate(Sender: TObject);
+var
+  CaminhoAplicacao: string;
 begin
-  FControllerPessoa := TControllerCadastroPessoa.New;
+  CaminhoAplicacao := ExtractFilePath(Application.ExeName);
+  ClientDataSetClientes.LoadFromFile(CaminhoAplicacao + 'Clientes.xml');
+  //FControllerPessoa := TControllerCadastroPessoa.New;
+  FControllerPessoa := TControllerCadastro<TPessoa>.New;
   if Assigned(FControllerPessoa) then
   begin
+    FIterator  := FControllerPessoa.Entidade.getLista;
     DefinicaoStringGrid;
-    if Assigned(FControllerPessoa.Pessoa.GetListaPessoa) then
-      PreencherStringGrid(FControllerPessoa.Pessoa.GetListaPessoa);
+    if Assigned(FControllerPessoa.Entidade) then
+      PreencherStringGrid(FIterator);
   end;
 end;
 
